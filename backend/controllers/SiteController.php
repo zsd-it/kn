@@ -1,11 +1,13 @@
 <?php
 namespace backend\controllers;
 
+use common\models\User;
 use Yii;
 use yii\web\Controller;
 use yii\filters\VerbFilter;
 use yii\filters\AccessControl;
 use common\models\LoginForm;
+use yii\web\NotFoundHttpException;
 
 /**
  * Site controller
@@ -23,17 +25,17 @@ class SiteController extends Controller
                 'rules' => [
                     [
                         'actions' => ['login', 'error'],
-                        'allow' => true,
+                        'allow'   => true,
                     ],
                     [
                         'actions' => ['logout', 'index'],
-                        'allow' => true,
-                        'roles' => ['@'],
+                        'allow'   => true,
+                        'roles'   => ['@'],
                     ],
                 ],
             ],
-            'verbs' => [
-                'class' => VerbFilter::className(),
+            'verbs'  => [
+                'class'   => VerbFilter::className(),
                 'actions' => [
                     'logout' => ['post'],
                 ],
@@ -41,16 +43,13 @@ class SiteController extends Controller
         ];
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function actions()
+    public function actionError()
     {
-        return [
-            'error' => [
-                'class' => 'yii\web\ErrorAction',
-            ],
-        ];
+        if (($exception = Yii::$app->getErrorHandler()->exception) === null) {
+            $exception = new NotFoundHttpException(Yii::t('yii', 'Page not found.'));
+        }
+
+        return $exception->getMessage();
     }
 
     /**
@@ -75,8 +74,9 @@ class SiteController extends Controller
         }
 
         $model = new LoginForm();
+
         if ($model->load(Yii::$app->request->post()) && $model->login()) {
-            return $this->goBack();
+            return $this->loginInSession();
         } else {
             $model->password = '';
 
@@ -84,6 +84,24 @@ class SiteController extends Controller
                 'model' => $model,
             ]);
         }
+    }
+
+    /**
+     * 登录后处理session
+     *
+     * @return array
+     */
+    public function loginInSession()
+    {
+        $session = Yii::$app->session;
+
+        $session->open();
+        $session[User::USER_SESSION_ID] = Yii::$app->user->identity->getId();
+
+        return [
+            'uid'   => Yii::$app->user->identity->getId(),
+            'token' => $session->id,
+        ];
     }
 
     /**

@@ -2,7 +2,6 @@
 namespace common\models;
 
 use Yii;
-use yii\base\NotSupportedException;
 use yii\behaviors\TimestampBehavior;
 use yii\db\ActiveRecord;
 use yii\web\IdentityInterface;
@@ -11,21 +10,33 @@ use yii\web\IdentityInterface;
  * User model
  *
  * @property integer $id
- * @property string $username
- * @property string $password_hash
- * @property string $password_reset_token
- * @property string $email
- * @property string $auth_key
+ * @property string  $username
+ * @property string  $password_hash
+ * @property string  $password_reset_token
+ * @property string  $email
+ * @property string  $auth_key
  * @property integer $status
  * @property integer $created_at
  * @property integer $updated_at
- * @property string $password write-only password
+ * @property string  $password
  */
 class User extends ActiveRecord implements IdentityInterface
 {
     const STATUS_DELETED = 0;
-    const STATUS_ACTIVE = 10;
+    const STATUS_ACTIVE  = 10;
 
+//    //用户密码
+    public $password;
+
+    /**
+     * @var string 用户登录后保存session的数组下标
+     */
+    const USER_SESSION_ID = 'user_session_id';
+
+    /**
+     * 登录时长, 30 分钟 ,单位 S
+     */
+    const LOGIN_TIME_DURATION = 30 * 60;
 
     /**
      * {@inheritdoc}
@@ -41,7 +52,7 @@ class User extends ActiveRecord implements IdentityInterface
     public function behaviors()
     {
         return [
-            TimestampBehavior::className(),
+            TimestampBehavior::class,
         ];
     }
 
@@ -53,6 +64,7 @@ class User extends ActiveRecord implements IdentityInterface
         return [
             ['status', 'default', 'value' => self::STATUS_ACTIVE],
             ['status', 'in', 'range' => [self::STATUS_ACTIVE, self::STATUS_DELETED]],
+            [['username','password'],'required'],
         ];
     }
 
@@ -69,13 +81,22 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public static function findIdentityByAccessToken($token, $type = null)
     {
-        throw new NotSupportedException('"findIdentityByAccessToken" is not implemented.');
+        //设置 session
+        Yii::$app->session->id = $token;
+
+        $user_id = Yii::$app->session[self::USER_SESSION_ID];
+        if (empty($user_id) || is_null($user_id)) {
+            return null;
+        }
+
+        return static::findOne(['id' => $user_id, 'status' => 10]);
     }
 
     /**
      * Finds user by username
      *
      * @param string $username
+     *
      * @return static|null
      */
     public static function findByUsername($username)
@@ -87,6 +108,7 @@ class User extends ActiveRecord implements IdentityInterface
      * Finds user by password reset token
      *
      * @param string $token password reset token
+     *
      * @return static|null
      */
     public static function findByPasswordResetToken($token)
@@ -97,7 +119,7 @@ class User extends ActiveRecord implements IdentityInterface
 
         return static::findOne([
             'password_reset_token' => $token,
-            'status' => self::STATUS_ACTIVE,
+            'status'               => self::STATUS_ACTIVE,
         ]);
     }
 
@@ -105,6 +127,7 @@ class User extends ActiveRecord implements IdentityInterface
      * Finds out if password reset token is valid
      *
      * @param string $token password reset token
+     *
      * @return bool
      */
     public static function isPasswordResetTokenValid($token)
@@ -113,8 +136,9 @@ class User extends ActiveRecord implements IdentityInterface
             return false;
         }
 
-        $timestamp = (int) substr($token, strrpos($token, '_') + 1);
-        $expire = Yii::$app->params['user.passwordResetTokenExpire'];
+        $timestamp = (int)substr($token, strrpos($token, '_') + 1);
+        $expire    = Yii::$app->params['user.passwordResetTokenExpire'];
+
         return $timestamp + $expire >= time();
     }
 
@@ -123,7 +147,7 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public function getId()
     {
-        return $this->getPrimaryKey();
+        return $this->id;
     }
 
     /**
@@ -146,6 +170,7 @@ class User extends ActiveRecord implements IdentityInterface
      * Validates password
      *
      * @param string $password password to validate
+     *
      * @return bool if password provided is valid for current user
      */
     public function validatePassword($password)
@@ -185,5 +210,37 @@ class User extends ActiveRecord implements IdentityInterface
     public function removePasswordResetToken()
     {
         $this->password_reset_token = null;
+    }
+
+    /**
+     * @param string   $user_id
+     * @param int      $type
+     *
+     * @param int|null $duration
+     *
+     * @return bool
+     * @throws \yii\base\Exception
+     * @throws \yii\db\Exception
+     */
+    public static function login($user_id, $duration = 0)
+    {
+        return Yii::$app->user->login(self::getUser($user_id), $duration);
+    }
+
+    /**
+     * 获取用户
+     *
+     * @param $user_id
+     */
+    public static function getUser($user_id)
+    {
+        return static::findOne(['id' => $user_id]);
+    }
+
+    public function fields()
+    {
+        return [
+            'username'
+        ];
     }
 }

@@ -3,7 +3,7 @@ return [
     'components' => [
         'db' => [
             'class' => 'yii\db\Connection',
-            'dsn' => 'mysql:host=localhost;dbname=yii2advanced',
+            'dsn' => 'mysql:host=172.16.39.177;dbname=zc',
             'username' => 'root',
             'password' => '',
             'charset' => 'utf8',
@@ -15,6 +15,14 @@ return [
             // 'useFileTransport' to false and configure a transport
             // for the mailer to send real emails.
             'useFileTransport' => true,
+        ],
+        'session' => [
+            'class' => 'yii\redis\Session',
+            'redis' => [
+                'hostname' => '127.0.0.1',
+                'port'     => 6379,
+                'database' => 0,
+            ],
         ],
     ],
 ];
